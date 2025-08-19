@@ -1,0 +1,9 @@
+[profile.ci.fuzz]
+runs = 10_000
+
+[profile.default]
+remappings = [
+  "@openzeppelin/=node_modules/@openzeppelin/",
+  "ds-test/=lib/forge-std/lib/ds-test/src/",
+  "forge-std/=lib/forge-std/src/",
+]
