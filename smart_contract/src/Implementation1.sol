@@ -19,13 +19,25 @@ contract Implementation1 is
         uint256 goal;
         uint256 raised;
         address creator;
-        address[] funders;
+        mapping(address => uint256) funders;
         bool active;
     }
     mapping(uint256 => Campaign) public campaigns;
 
     // events
     event CampaignCreated(uint256 indexed id, address creator);
+    event CampaignContributed(uint256 indexed id, address funder);
+    event CampaignWithdrawn(uint256 indexed id, address creater);
+    event CampaignRefunded(uint256 indexed id, address funder);
+    event CampaignExtended(uint256 indexed id, address creater);
+    // modifiers
+    modifier onlyFunder(uint256 _campaignId) {
+        require(
+            campaigns[_campaignId].funders[msg.sender] > 0,
+            "You are not a funder of this campaign"
+        );
+        _;
+    }
 
     // initilizer
     function initialize() public initializer {
@@ -41,16 +53,14 @@ contract Implementation1 is
     ) external {
         require(deadline > block.timestamp, "deadline is not reached");
         campaignCount++;
-        campaigns[campaignCount] = Campaign(
-            campaignCount,
-            ipfsHash,
-            deadline,
-            goal,
-            0,
-            msg.sender,
-            new address[](0),
-            true
-        );
+        Campaign storage newCampaign = campaigns[campaignCount];
+        newCampaign.id = campaignCount;
+        newCampaign.ipfsHash = ipfsHash;
+        newCampaign.deadline = deadline;
+        newCampaign.goal = goal;
+        newCampaign.raised = 0;
+        newCampaign.creator = msg.sender;
+        newCampaign.active = true;
         emit CampaignCreated(campaignCount, msg.sender);
     }
 
@@ -63,6 +73,66 @@ contract Implementation1 is
         );
         require(msg.value > 0, "no ether sent");
         campaigns[campaignId].raised += msg.value;
-        campaigns[campaignId].funders.push(msg.sender);
+        campaigns[campaignId].funders[msg.sender] += msg.value;
+    }
+
+    // withdraw
+    function withdrawFunds(uint256 campaignId) external nonReentrant {
+        _onlyCreater(campaignId);
+        _checkDeadline(campaigns[campaignId].deadline);
+        _checkGoal(campaigns[campaignId].goal, campaignId);
+        uint256 amount = campaigns[campaignId].raised;
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "transfer failed");
+        campaigns[campaignId].active = false;
+        campaigns[campaignId].raised = 0;
+        emit CampaignWithdrawn(campaignId, msg.sender);
+    }
+
+    // refund
+    function refund(
+        uint256 campaignId
+    ) external onlyFunder(campaignId) nonReentrant {
+        require(campaigns[campaignId].active == true, "campaign is not active");
+
+        uint256 funderAmount = campaigns[campaignId].funders[msg.sender];
+        (bool success, ) = payable(msg.sender).call{value: funderAmount}("");
+        require(success, "transfer failed");
+        campaigns[campaignId].raised -= funderAmount;
+        campaigns[campaignId].funders[msg.sender] = 0;
+        emit CampaignRefunded(campaignId, msg.sender);
+    }
+
+    // extend deadline
+    function extendDeadline(uint256 campaignId, uint256 newDeadline) external {
+        _onlyCreater(campaignId);
+        require(
+            newDeadline > block.timestamp &&
+                newDeadline > campaigns[campaignId].deadline,
+            "deadline is not reached"
+        );
+        campaigns[campaignId].deadline = newDeadline;
+        emit CampaignExtended(campaignId, msg.sender);
+    }
+
+    // only creater campign function
+    function _onlyCreater(uint256 _campaignId) internal view {
+        if (campaigns[_campaignId].creator != msg.sender) {
+            revert("only creator");
+        }
+    }
+
+    // helper  function to check deadline
+    function _checkDeadline(uint256 _deadline) internal view {
+        if (_deadline < block.timestamp) {
+            revert("campaigns is over ");
+        }
+    }
+
+    // helper  function  to check goal
+    function _checkGoal(uint256 _goal, uint256 _campaignId) internal view {
+        if (campaigns[_campaignId].raised < _goal) {
+            revert("goal is not reached");
+        }
     }
 }
