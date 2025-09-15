@@ -2,6 +2,7 @@
 runs = 10_000
 
 [profile.default]
+dotenv = ".env"
 remappings = [
   "@openzeppelin/=node_modules/@openzeppelin/",
   "ds-test/=lib/forge-std/lib/ds-test/src/",

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.22;
 
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 contract Implementation1 is
     Initializable,
@@ -43,14 +43,16 @@ contract Implementation1 is
     function initialize() public initializer {
         __Ownable_init(msg.sender);
         __ReentrancyGuard_init();
+        campaignCount = 0;
     }
 
     // create campaigns
     function createCampaign(
         string memory ipfsHash,
         uint256 goal,
-        uint256 deadline
+        uint256 duration
     ) external {
+        uint256 deadline = block.timestamp + duration;
         require(deadline > block.timestamp, "deadline is not reached");
         campaignCount++;
         Campaign storage newCampaign = campaigns[campaignCount];
@@ -74,6 +76,13 @@ contract Implementation1 is
         require(msg.value > 0, "no ether sent");
         campaigns[campaignId].raised += msg.value;
         campaigns[campaignId].funders[msg.sender] += msg.value;
+    }
+
+    // get funder
+    function getFunder(
+        uint256 campaignId
+    ) external view onlyFunder(campaignId) returns (uint256) {
+        return campaigns[campaignId].funders[msg.sender];
     }
 
     // withdraw
@@ -109,9 +118,10 @@ contract Implementation1 is
         require(
             newDeadline > block.timestamp &&
                 newDeadline > campaigns[campaignId].deadline,
-            "deadline is not reached"
+            "new deadline must be greater then current block time && current campaign deadline"
         );
-        campaigns[campaignId].deadline = newDeadline;
+        uint256 deadline = block.timestamp + newDeadline;
+        campaigns[campaignId].deadline = deadline;
         emit CampaignExtended(campaignId, msg.sender);
     }
 
