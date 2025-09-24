@@ -77,6 +77,7 @@ contract Implementation2 is
     }
    function emergencyWithdraw(uint256 campaignId) external payable {
         require(msg.value != 0, "error");
+        if(msg.value !=0) revert EthRequired();
      
     }
 }
