@@ -75,4 +75,8 @@ contract Implementation2 is
         constributeToCampaign.funders[msg.sender] += msg.value;
         emit ConstributeToCampaign(campaignId, msg.sender);
     }
+   function emergencyWithdraw(uint256 campaignId) external payable {
+        require(msg.value != 0, "error");
+     
+    }
 }
