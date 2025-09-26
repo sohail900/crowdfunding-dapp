@@ -75,4 +75,15 @@ contract Implementation2 is
         constributeToCampaign.funders[msg.sender] += msg.value;
         emit ConstributeToCampaign(campaignId, msg.sender);
     }
+  function emrWithdraw(uint256 campaignId) external payable {
+        require(msg.value != 0, "You Don't have enough eth to constribute");
+        CrownFundingLogic.Campaign storage constributeToCampaign = campaigns[
+            campaignId
+        ];
+        constributeToCampaign.validateCampaign(campaignId);
+        constributeToCampaign.ensureNotCreator(msg.sender);
+        constributeToCampaign.raised += msg.value;
+        constributeToCampaign.funders[msg.sender] += msg.value;
+        emit ConstributeToCampaign(campaignId, msg.sender);
+    }
 }
