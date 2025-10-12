@@ -13,10 +13,12 @@ contract Implementation2 is
     ReentrancyGuardUpgradeable
 {
     using CrownFundingLogic for CrownFundingLogic.Campaign;
+
     uint256 campaignCount;
     // map of campaign
     mapping(uint256 => CrownFundingLogic.Campaign) public campaigns;
     // events
+
     event NewCampaignCreated(
         uint256 indexed campaignId,
         address indexed creator
@@ -24,6 +26,10 @@ contract Implementation2 is
     event ConstributeToCampaign(
         uint256 indexed campaignId,
         address indexed constributor
+    );
+    event WithdrawFromCampaign(
+        uint256 indexed campaignId,
+        address indexed creator
     );
 
     // disabled constructor
@@ -38,6 +44,15 @@ contract Implementation2 is
 
     // receive eth
     receive() external payable {}
+
+    // modifiers
+    modifier onlyFunders(uint256 campaignId) {
+        require(
+            campaigns[campaignId].funders[msg.sender] > 0,
+            MustBeAFunderToRefund(msg.sender)
+        );
+        _;
+    }
 
     // create a new campaign
     function createCampaign(
@@ -74,5 +89,33 @@ contract Implementation2 is
         constributeToCampaign.raised += msg.value;
         constributeToCampaign.funders[msg.sender] += msg.value;
         emit ConstributeToCampaign(campaignId, msg.sender);
+    }
+
+    // withdraw funds
+    function withdrawFunds(uint256 campaignId) external nonReentrant {
+        CrownFundingLogic.Campaign storage withdrawFromCampaign = campaigns[
+            campaignId
+        ];
+        withdrawFromCampaign.invalidCampaign(campaignId);
+        withdrawFromCampaign.onlyCreator(msg.sender);
+        if (withdrawFromCampaign.raised >= withdrawFromCampaign.goal)
+            revert GoalNotMeetYet(campaignId);
+        if (withdrawFromCampaign.deadline < block.timestamp)
+            revert CampaignEnded(campaignId);
+        (bool success, ) = payable(msg.sender).call{
+            value: withdrawFromCampaign.raised
+        }(" ");
+        require(success, TransferFailed(campaignId, msg.sender));
+        emit WithdrawFromCampaign(campaignId, msg.sender);
+    }
+
+    // refund from campaign
+    function refund(
+        uint256 campaignId
+    ) external nonReentrant onlyFunders(campaignId) {
+        CrownFundingLogic.Campaign storage refundFromCampaign = campaigns[
+            campaignId
+        ];
+        refundFromCampaign.invalidCampaign(campaignId);
     }
 }

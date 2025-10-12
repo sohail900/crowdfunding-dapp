@@ -16,15 +16,24 @@ library CrownFundingLogic {
         bool active;
     }
 
+    // invalid campaign
+    function invalidCampaign(
+        Campaign storage campaign,
+        uint256 campaignId
+    ) internal view {
+        if (campaign.id != campaignId) revert InvalidCampaign();
+    }
+
     // check campaign
     function validateCampaign(
         Campaign storage campaign,
         uint256 campaignId
     ) internal view {
-        if (campaign.id != campaignId) revert InvalidCampaign();
+        invalidCampaign(campaign, campaignId);
         if (!campaign.active) revert CampaignNotActive(campaignId);
-        if (block.timestamp > campaign.deadline)
+        if (block.timestamp > campaign.deadline) {
             revert CampaignEnded(campaignId);
+        }
     }
 
     // creator must not be a constributer
