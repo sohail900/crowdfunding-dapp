@@ -10,6 +10,12 @@ error CampaignDetailsMustRequired();
 error GoalNotMeetYet(uint256 campaignId);
 error TransferFailed(uint256 campaignId, address creator);
 error MustBeAFunderToRefund(address funder);
-// for creators
+error WithdrawNotRequested(uint256 campaignId);
+error ChallangePeriodNotOver(uint256 campaignId);
+error WithdrawRequestNotPending(uint256 campaignId);
+error WithdrawIsDisputed(uint256 campaignId);
+error NoActiveWithdrawRequest(uint256 campaignId);
+error ChallangePeriodEnded(uint256 campaignId);
 error NotCampaignCreator();
 error CreatorCannotBeContributor(address _creator);
+error AlreadySumbittedForDisputer(address _address);

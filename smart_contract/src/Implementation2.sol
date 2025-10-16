@@ -31,6 +31,15 @@ contract Implementation2 is
         uint256 indexed campaignId,
         address indexed creator
     );
+    event DisputedFiled(
+        uint256 indexed campaignId,
+        address indexed _disputerAddress
+    );
+    event DisputeThresholdMet(
+        uint256 indexed campaignId,
+        address indexed _disputerAddress,
+        uint256 lengthOfDisputer
+    );
 
     // disabled constructor
     constructor() {
@@ -75,6 +84,11 @@ contract Implementation2 is
         newCampaign.raised = 0;
         newCampaign.active = true;
         newCampaign.creator = msg.sender;
+        newCampaign.withdrawStatus = CrownFundingLogic.WithdrawStatus.Pending;
+        newCampaign.challangePeriodEndAt = 0;
+        newCampaign.disputedBy = new address[](0);
+        newCampaign.withdrawRequestedAt = 0;
+
         emit NewCampaignCreated(campaignCount, msg.sender);
     }
 
@@ -91,22 +105,71 @@ contract Implementation2 is
         emit ConstributeToCampaign(campaignId, msg.sender);
     }
 
+    // request for withdraw funds
+    function requestWithdrawal(uint256 campaignId) external {
+        CrownFundingLogic.Campaign storage campaign = campaigns[campaignId];
+        campaign.validateCampaign(campaignId);
+        campaign.onlyCreator(msg.sender);
+
+        if (campaign.raised < campaign.goal) revert GoalNotMeetYet(campaignId);
+
+        if (campaign.deadline < block.timestamp)
+            revert CampaignEnded(campaignId);
+
+        campaign.withdrawStatus = CrownFundingLogic.WithdrawStatus.Requested;
+        campaign.withdrawRequestedAt = block.timestamp;
+        campaign.challangePeriodEndAt = block.timestamp + 7 days;
+    }
+
     // withdraw funds
-    function withdrawFunds(uint256 campaignId) external nonReentrant {
+    function finalizeWithdrawal(uint256 campaignId) external nonReentrant {
         CrownFundingLogic.Campaign storage withdrawFromCampaign = campaigns[
             campaignId
         ];
-        withdrawFromCampaign.invalidCampaign(campaignId);
-        withdrawFromCampaign.onlyCreator(msg.sender);
-        if (withdrawFromCampaign.raised >= withdrawFromCampaign.goal)
-            revert GoalNotMeetYet(campaignId);
-        if (withdrawFromCampaign.deadline < block.timestamp)
-            revert CampaignEnded(campaignId);
+        withdrawFromCampaign.isCreatorEligibleToFinilizeWithdraw(campaignId);
+
         (bool success, ) = payable(msg.sender).call{
             value: withdrawFromCampaign.raised
         }(" ");
+
         require(success, TransferFailed(campaignId, msg.sender));
+        withdrawFromCampaign.withdrawStatus = CrownFundingLogic
+            .WithdrawStatus
+            .Completed;
         emit WithdrawFromCampaign(campaignId, msg.sender);
+    }
+
+    // file dispute
+    function fileDispute(uint256 campaignId) external onlyFunders(campaignId) {
+        CrownFundingLogic.Campaign storage fileDisputeFromCampaign = campaigns[
+            campaignId
+        ];
+        require(
+            fileDisputeFromCampaign.withdrawStatus ==
+                CrownFundingLogic.WithdrawStatus.Requested,
+            NoActiveWithdrawRequest(campaignId)
+        );
+        require(
+            block.timestamp < fileDisputeFromCampaign.challangePeriodEndAt,
+            ChallangePeriodEnded(campaignId)
+        );
+        fileDisputeFromCampaign.alreadySumbittedForDisputer();
+
+        // stored new funders to disputed array
+        fileDisputeFromCampaign.disputedBy.push(msg.sender);
+        emit DisputedFiled(campaignId, msg.sender);
+
+        // check if enough disputer then make withdraw disputed
+        if (fileDisputeFromCampaign.isEnoughDisputer()) {
+            fileDisputeFromCampaign.withdrawStatus = CrownFundingLogic
+                .WithdrawStatus
+                .Disputed;
+            emit DisputeThresholdMet(
+                campaignId,
+                msg.sender,
+                fileDisputeFromCampaign.disputedBy.length
+            );
+        }
     }
 
     // refund from campaign
